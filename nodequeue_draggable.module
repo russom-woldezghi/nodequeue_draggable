@@ -1,0 +1,193 @@
+<?php
+/**
+ * @file
+ *
+ */
+
+
+function nodequeue_draggable_menu(){
+ $items = array();
+ $items['admin/structure/nodequeue/%/nodequeue_draggable'] = array(
+  'title' => 'Nodequeue Draggable',
+  'page callback' => 'drupal_get_form',
+  'page arguments' => array('nodequeue_draggable_settings'),
+  'access callback' => TRUE,
+  'expanded' => TRUE,
+  'type' => MENU_LOCAL_TASK,
+  );
+ $items['ajax/nodequeue_daraggable'] = array(
+  'page callback' => 'drupal_get_form',
+  'page arguments' => array('nodequeue_draggable_ajax_form'),
+  'access callback' => TRUE,
+  'type' => MENU_CALLBACK,
+  );
+ $items['load_nq/%'] = array(
+  'page callback' => 'get_nodequeue_object',
+  'page arguments' => array(1),
+  'type' => MENU_CALLBACK,
+  'access arguments' => array('access content'),
+  );
+ $items['recieve/nid'] = array(
+  'page callback' => 'message_from_js',
+  'access callback' => TRUE,
+  'access arguments' => array('access content'),
+  'type' => MENU_CALLBACK,
+  );
+ return $items;
+}
+
+function message_from_js() {
+  if(isset($_POST['your_message'])) {
+    $msg = (int)$_POST['your_message'];
+    dpm($msg);
+  }
+}
+
+function get_nodequeue_object($nodequeue_object_id){
+  $ajax_commands = array();
+
+  $nodequeue = nodequeue_load_nodes($nodequeue_object_id, $backward = FALSE, $from = 0, $count = 5, $published_only = FALSE);
+
+  $nodes_nid = array();
+  foreach ($nodequeue as $key => $value) {
+    $nodes_nid[$key] = array($value->nid, $value->title);
+  }
+
+  $inline = 'dpm($nodes_nid)';
+
+  // Create a new AJAX command that replaces the #page text with our own text.
+  $ajax_commands[] = ajax_command_replace('#messages', $inline);
+
+  // Return our commands in JSON.
+  ajax_deliver(array('#type' => 'ajax', '#commands' => $ajax_commands));
+}
+
+
+function nodequeue_draggable_page_alter(&$page) {
+  // Load in Drupal core AJAX library.
+  // TODO: load when needed, not every page load
+  drupal_add_library('system', 'drupal.ajax');
+}
+
+
+
+
+function nodequeue_draggable_settings($form, &$form_state) {
+  $nqid = nodequeue_nid();
+  $saved_status = db_query('SELECT status FROM {nodequeue_draggable} WHERE nqid = :nqid', array(':nqid' => $nqid))->fetchField();
+  $saved_hover_text = db_query('SELECT hover_text FROM {nodequeue_draggable} WHERE nqid = :nqid', array(':nqid' => $nqid))->fetchField();
+  $saved_css_class = db_query('SELECT css_class FROM {nodequeue_draggable} WHERE nqid = :nqid', array(':nqid' => $nqid))->fetchField();
+
+  $nodequeue_view = views_get_view('nodequeue_'.$nqid);
+  $nodequeue_view_display = ($nodequeue_view->display);
+
+
+  $nodequeue_view_display_list = array();
+  foreach ($nodequeue_view_display as $key => $value) {
+   $nodequeue_view_display_list[$key] = $value->display_title;
+ }
+
+ $form = array();
+ $form['status'] = array(
+  '#title' => t('Enable Nodequeue Draggable for this nodequeue view.'),
+  '#type' => 'checkbox',
+  '#description' => t('Nodequeue Draggable will be applied to this view: <a href="@view-admin-page">'.$nodequeue_view->human_name.'</a>.', array('@view-admin-page' => url('admin/structure/views/view/nodequeue_'.$nqid.'/edit'))),
+  '#default_value' => $saved_status,
+  );
+ $form['view-to-enable'] = array(
+  '#title' => t('Select Views to Enable Nodequeue Draggable'),
+  '#type' => 'fieldset',
+  '#states' => array(
+      // Action to take.
+    'visible' => array(
+      ':input[name="status"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+ $form['view-to-enable']['options'] = array(
+  '#title' => t('Select Views to Enable Nodequeue Draggable'),
+  '#type' => 'checkboxes',
+  '#options' => $nodequeue_view_display_list,
+  '#states' => array(
+      // Action to take.
+    'visible' => array(
+      ':input[name="status"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+ $form['hover_text'] = array(
+  '#title' => t('Hover Text'),
+  '#type' => 'textfield',
+  '#default_value' => $saved_hover_text,
+  );
+ $form['css_class'] = array(
+  '#title' => t('CSS Class'),
+  '#type' => 'textfield',
+  '#default_value' => $saved_css_class,
+  );
+  // Provide a submit button.
+ $form['submit'] = array(
+  '#type' => 'submit',
+  '#value' => t('Submit'),
+  '#submit' => array('nodequeue_draggable_settings_submit'),
+  );
+ return $form;
+
+}
+
+
+function nodequeue_nid(){
+   //Get Nodequeue ID from url
+  $args = explode('/', current_path());
+  $nodequeue_id = $args[3];
+  return $nodequeue_id;
+}
+
+function nodequeue_draggable_settings_submit($form, &$form_state) {
+ //Upsert form values
+  db_merge('nodequeue_draggable')
+  ->key(array('nqid' => nodequeue_nid()))
+  ->fields(array(
+    'status' => $form_state['values']['status'],
+    'hover_text' => $form_state['values']['hover_text'],
+    'css_class' => $form_state['values']['css_class'],
+    ))->execute();
+
+  drupal_set_message("Successfully saved Nodequeue Draggable Settings");
+}
+
+/**
+ * Implements hook_contextual_links_view_alter().
+ * @author Russom Woldezghi
+ */
+
+function nodequeue_draggable_contextual_links_view_alter(&$element, $items) {
+
+  if(isset($element['#element']['#views_contextual_links_info']['views_ui']['view']->export_module) == 'nodequeue'){
+    $element['#element'];
+
+    // Add jQuery Draggable and Sortable library
+    drupal_add_library('system', 'ui.sortable');
+    drupal_add_library('system', 'ui.draggable');
+
+    // Add Custom js files
+    drupal_add_js(drupal_get_path('module', 'nodequeue_draggable') .'/nodequeue_draggable.js');
+    drupal_add_css(drupal_get_path('module', 'nodequeue_draggable') .'/nodequeue_draggable.css');
+
+    // Contextual Link for nodequeue generated views
+    $links = &$element['#links'];
+
+    $links['change-order'] = array(
+      'title' => t('Re-order Queue'),
+      'href' => '/load_nq/1',
+      'attributes' => array(
+        'id' => 'block-system-main',
+        'class' => 'nodequeue_draggable nodequeue_reorder_subqueue'
+        ),
+      'external' => TRUE
+      );
+  }
+
+}
+
+

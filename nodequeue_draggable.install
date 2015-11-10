@@ -1,0 +1,49 @@
+<?php
+function nodequeue_draggable_schema() {
+  $schema['nodequeue_draggable'] = array(
+    'description' => 'Nodequeue Draggable Settings.',
+    'fields' => array(
+      'nqid' => array(
+        'description' => 'Primary identifier.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'size' => 'normal',
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'status' => array(
+        'description' => "Status of Nodequeue Draggable for Nodequeue.",
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      'hover_text' => array(
+        'description' => "Hover text of Nodequeue items.",
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      'css_class' => array(
+        'description' => "Class for Nodequeue Draggable.",
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      ),
+    'primary key' => array('nqid'),
+    );
+  return $schema;
+}
+
+function nodequeue_draggable_install() {
+  // Create my tables.
+  drupal_install_schema('nodequeue_draggable');
+}
+
+function nodequeue_draggable_uninstall() {
+  // Drop my tables.
+  drupal_uninstall_schema('nodequeue_draggable');
+}

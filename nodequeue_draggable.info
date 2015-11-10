@@ -1,0 +1,6 @@
+name = Nodequeue Draggable
+description = Drag nodequeue items
+package = Nodequeue
+core = 7.x
+
+dependencies[] = nodequeue
